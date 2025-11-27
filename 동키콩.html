@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Kong Climb Infinite</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        /* 전체 레이아웃 설정 */
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #111;
+            color: white;
+            font-family: 'Press Start 2P', monospace;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow-x: hidden; /* 가로 스크롤 방지 */
+            touch-action: none;
+        }
+
+        /* 메인 컨테이너: 광고-게임-광고 정렬 */
+        .main-layout {
+            display: flex;
+            align-items: center; /* 수직 중앙 정렬 */
+            justify-content: center;
+            gap: 20px; /* 게임과 광고 사이 간격 */
+            width: 100%;
+            max-width: 1200px;
+        }
+
+        /* 광고 컨테이너 스타일 */
+        .ad-sidebar {
+            width: 160px; /* 일반적인 스카이스크래퍼 광고 너비 */
+            height: 600px;
+            background-color: #222; /* 광고 로드 전 배경색 */
+            border: 1px dashed #444;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+            font-size: 10px;
+            text-align: center;
+            flex-shrink: 0; /* 화면 줄어도 광고 크기 유지 */
+        }
+
+        /* 게임 컨테이너 */
+        #game-container {
+            position: relative;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            border: 4px solid #444;
+            /* Flex 아이템 설정 */
+            flex-shrink: 0; 
+        }
+
+        canvas {
+            display: block;
+            background-color: #000;
+        }
+
+        /* 모바일 등 좁은 화면에서는 사이드 광고 숨김 */
+        @media (max-width: 1000px) {
+            .ad-sidebar {
+                display: none;
+            }
+        }
+
+        /* 기존 UI 스타일 유지 */
+        #ui-layer {
+            position: absolute;
+            top: 10px;
+            left: 0;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 20px;
+            box-sizing: border-box;
+            pointer-events: none;
+            text-shadow: 2px 2px 0 #000;
+            font-size: 14px;
+        }
+
+        .score-box { text-align: left; }
+        .level-box { text-align: right; }
+        .high-score { color: #f00; display: block; font-size: 10px; margin-top: 5px;}
+
+        /* 모바일 컨트롤 */
+        #mobile-controls {
+            display: none;
+            width: 100%;
+            max-width: 600px;
+            margin-top: 20px; /* 게임 아래 간격 */
+            justify-content: space-between;
+            padding: 0 20px;
+            box-sizing: border-box;
+        }
+
+        .control-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            width: 60px;
+            height: 60px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            user-select: none;
+            touch-action: manipulation;
+        }
+
+        .btn:active {
+            background: rgba(255, 255, 255, 0.5);
+        }
+
+        .btn-rect {
+            border-radius: 10px;
+            width: 80px;
+        }
+
+        @media (hover: none) and (pointer: coarse) {
+            #mobile-controls {
+                display: flex;
+            }
+            /* 모바일 세로 모드에서 게임 화면 조정 */
+            @media (max-width: 650px) {
+                canvas {
+                    width: 100%;
+                    height: auto;
+                }
+                #game-container {
+                    width: 95vw;
+                    height: 95vw; /* 정사각형 비율 유지 노력 */
+                    border: 2px solid #444;
+                }
+            }
+        }
+
+        #start-screen, #game-over-screen, #level-clear-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            text-align: center;
+        }
+
+        h1 { font-size: 32px; color: #e74c3c; margin-bottom: 20px; text-shadow: 4px 4px 0 #333; line-height: 1.5; }
+        p { font-size: 14px; color: #ccc; margin-bottom: 30px; line-height: 1.8; }
+        button.action-btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 16px;
+            cursor: pointer;
+            border-bottom: 4px solid #2980b9;
+        }
+        button.action-btn:active {
+            border-bottom: 0;
+            transform: translateY(4px);
+        }
+        
+        .hidden { display: none !important; }
+
+    </style>
+</head>
+<body>
+
+    <!-- 메인 레이아웃 컨테이너 -->
+    <div class="main-layout">
+        
+        <!-- 왼쪽 광고 영역 -->
+        <div class="ad-sidebar left-ad">
+            <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9245856782026411"
+     crossorigin="anonymous"></script>
+            <div>
+                GOOGLE<br>ADSENSE<br>(160x600)
+            </div>
+            <!-- 코드 끝 -->
+        </div>
+
+        <!-- 게임 영역 -->
+        <div id="game-container">
+            <canvas id="gameCanvas" width="600" height="600"></canvas>
+            
+            <div id="ui-layer">
+                <div class="score-box">
+                    SCORE: <span id="scoreVal">0</span>
+                    <span class="high-score">HIGH: <span id="highScoreVal">0</span></span>
+                </div>
+                <div class="level-box">
+                    LEVEL <span id="levelVal">1</span>
+                </div>
+            </div>
+
+            <div id="start-screen">
+                <h1>KONG CLIMB<br>INFINITE</h1>
+                <p>공주를 구하고<br>무한한 탑을 오르세요!</p>
+                <button class="action-btn" onclick="startGame()">게임 시작</button>
+            </div>
+
+            <div id="game-over-screen" class="hidden">
+                <h1>GAME OVER</h1>
+                <p>최종 레벨: <span id="finalLevel">1</span></p>
+                <p>최종 점수: <span id="finalScore">0</span></p>
+                <button class="action-btn" onclick="resetGame()">처음부터</button>
+            </div>
+            
+            <div id="level-clear-screen" class="hidden">
+                <h1 style="color: #2ecc71">LEVEL CLEAR!</h1>
+                <p>다음 층으로 이동합니다...</p>
+                <p>보너스 +1000점</p>
+            </div>
+        </div>
+
+        <!-- 오른쪽 광고 영역 -->
+        <div class="ad-sidebar right-ad">
+            <!-- 여기에 구글 애드센스 코드 (오른쪽) -->
+            <div>
+                GOOGLE<br>ADSENSE<br>(160x600)
+            </div>
+            <!-- 코드 끝 -->
+        </div>
+
+    </div>
+
+    <!-- 모바일 컨트롤 (메인 레이아웃 밖, 아래쪽 배치) -->
+    <div id="mobile-controls">
+        <div class="control-group">
+            <div class="btn" id="btn-left">←</div>
+            <div class="btn" id="btn-right">→</div>
+        </div>
+        <div class="control-group">
+            <div class="btn" id="btn-up">↑</div>
+            <div class="btn" id="btn-down">↓</div>
+        </div>
+        <div class="btn btn-rect" id="btn-jump">JUMP</div>
+    </div>
+
+    <script>
+        // --- 게임 설정 및 상수 ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // UI 요소
+        const scoreEl = document.getElementById('scoreVal');
+        const highScoreEl = document.getElementById('highScoreVal');
+        const levelEl = document.getElementById('levelVal');
+        const finalScoreEl = document.getElementById('finalScore');
+        const finalLevelEl = document.getElementById('finalLevel');
+        
+        const startScreen = document.getElementById('start-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const levelClearScreen = document.getElementById('level-clear-screen');
+
+        // 물리/게임플레이 상수
+        const GRAVITY = 0.4;
+        const FRICTION = 0.8;
+        const MOVE_SPEED = 2.5;
+        const JUMP_FORCE = 6.0; 
+        const CLIMB_SPEED = 2;
+
+        // 게임 상태 변수
+        let gameRunning = false;
+        let score = 0;
+        let level = 1;
+        let highScore = localStorage.getItem('kongHighScoreInfinite') || 0;
+        let animationId;
+
+        highScoreEl.innerText = highScore;
+
+        const keys = {
+            ArrowUp: false,
+            ArrowDown: false,
+            ArrowLeft: false,
+            ArrowRight: false,
+            Space: false
+        };
+
+        // --- 클래스 정의 ---
+
+        class Player {
+            constructor() {
+                this.w = 24;
+                this.h = 30;
+                this.x = 50;
+                this.y = canvas.height - 60;
+                this.vx = 0;
+                this.vy = 0;
+                this.speed = MOVE_SPEED;
+                this.jumpStrength = JUMP_FORCE;
+                this.grounded = false;
+                this.climbing = false;
+                this.color = '#e74c3c';
+                this.facingRight = true;
+                this.frame = 0;
+            }
+
+            resetPosition() {
+                this.x = 50;
+                this.y = canvas.height - 60;
+                this.vx = 0;
+                this.vy = 0;
+                this.climbing = false;
+            }
+
+            update() {
+                // 이동
+                if (keys.ArrowRight) { this.vx += 1; this.facingRight = true; }
+                if (keys.ArrowLeft) { this.vx -= 1; this.facingRight = false; }
+
+                this.vx *= FRICTION;
+                if (this.vx > this.speed) this.vx = this.speed;
+                if (this.vx < -this.speed) this.vx = -this.speed;
+                this.x += this.vx;
+
+                // 화면 경계
+                if (this.x < 0) { this.x = 0; this.vx = 0; }
+                if (this.x + this.w > canvas.width) { this.x = canvas.width - this.w; this.vx = 0; }
+
+                // 사다리 로직
+                let touchingLadder = false;
+                const centerX = this.x + this.w / 2;
+                
+                for (let ladder of ladders) {
+                    if (centerX >= ladder.x && centerX <= ladder.x + ladder.w &&
+                        this.y + this.h >= ladder.y && this.y + this.h <= ladder.y + ladder.h + 5) {
+                        touchingLadder = true;
+                        if (keys.ArrowUp || keys.ArrowDown) {
+                            this.climbing = true;
+                            this.vx = 0;
+                            this.x = ladder.x + (ladder.w - this.w) / 2;
+                        }
+                    }
+                }
+
+                if (!touchingLadder) this.climbing = false;
+
+                if (this.climbing) {
+                    this.vy = 0;
+                    this.grounded = false;
+                    if (keys.ArrowUp) this.y -= CLIMB_SPEED;
+                    if (keys.ArrowDown) this.y += CLIMB_SPEED;
+                } else {
+                    if (keys.Space && this.grounded) {
+                        this.vy = -this.jumpStrength;
+                        this.grounded = false;
+                    }
+                    this.vy += GRAVITY;
+                    this.y += this.vy;
+                }
+
+                this.grounded = false;
+                // 플랫폼 충돌
+                for (let plat of platforms) {
+                    if (this.vy >= 0 && !this.climbing) { 
+                        if (this.x + this.w > plat.x && this.x < plat.x + plat.w &&
+                            this.y + this.h >= plat.y && this.y + this.h <= plat.y + 15) {
+                                this.grounded = true;
+                                this.vy = 0;
+                                this.y = plat.y - this.h;
+                        }
+                    }
+                }
+                
+                // 바닥 충돌
+                if (this.y + this.h > canvas.height) {
+                    this.y = canvas.height - this.h;
+                    this.vy = 0;
+                    this.grounded = true;
+                }
+
+                if (Math.abs(this.vx) > 0.5 || (this.climbing && (keys.ArrowUp || keys.ArrowDown))) {
+                    this.frame++;
+                }
+            }
+
+            draw() {
+                ctx.save();
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y + 10, this.w, this.h - 10);
+                ctx.fillStyle = '#f1c40f';
+                ctx.fillRect(this.x + 4, this.y, 16, 12);
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x + 2, this.y, 20, 4);
+                ctx.fillStyle = '#3498db';
+                ctx.fillRect(this.x, this.y + 20, this.w, 10);
+                if (Math.floor(this.frame / 5) % 2 === 0) {
+                   ctx.clearRect(this.x + 8, this.y + 26, 8, 4);
+                }
+                ctx.restore();
+            }
+        }
+
+        class Barrel {
+            constructor(x, y, dir, speedMult) {
+                this.w = 20;
+                this.h = 20;
+                this.x = x;
+                this.y = y;
+                this.baseSpeed = 2 * speedMult; 
+                this.vx = dir * this.baseSpeed;
+                this.vy = 0;
+                this.active = true;
+                this.angle = 0;
+            }
+
+            update() {
+                this.vy += GRAVITY;
+                this.y += this.vy;
+                this.x += this.vx;
+
+                let onGround = false;
+                for (let plat of platforms) {
+                    if (this.vy >= 0) {
+                        if (this.x + this.w > plat.x && this.x < plat.x + plat.w &&
+                            this.y + this.h >= plat.y && this.y + this.h <= plat.y + 15) {
+                                this.y = plat.y - this.h;
+                                this.vy = 0;
+                                onGround = true;
+                        }
+                    }
+                }
+
+                // 화면 밖으로 나가면 제거
+                if (this.y > canvas.height) {
+                    this.active = false;
+                    addScore(100);
+                }
+                
+                // 벽 반사 (튕기기) - 공중에 있을 때도 적용되어야 함
+                if (this.x < 0) { 
+                    this.x = 0;
+                    this.vx = Math.abs(this.vx); 
+                }
+                if (this.x > canvas.width - this.w) { 
+                    this.x = canvas.width - this.w;
+                    this.vx = -Math.abs(this.vx); 
+                }
+
+                this.angle += this.vx * 0.2;
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x + this.w/2, this.y + this.h/2);
+                ctx.rotate(this.angle);
+                ctx.fillStyle = '#d35400';
+                ctx.beginPath();
+                ctx.arc(0, 0, 10, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#e67e22';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.fillStyle = '#000';
+                ctx.font = '10px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('K', 0, 0);
+                ctx.restore();
+            }
+        }
+
+        class Kong {
+            constructor(x, y) {
+                this.w = 50;
+                this.h = 50;
+                this.x = x;
+                this.y = y;
+                this.throwTimer = 0;
+                this.throwCooldown = Math.max(60, 150 - (level * 8));
+                this.barrelSpeedMult = 1 + (level * 0.15); 
+            }
+
+            update() {
+                this.throwTimer++;
+                if (this.throwTimer > this.throwCooldown) {
+                    this.throwBarrel();
+                    this.throwTimer = 0;
+                }
+            }
+
+            throwBarrel() {
+                barrels.push(new Barrel(this.x + 40, this.y + 20, 1, this.barrelSpeedMult));
+            }
+
+            draw() {
+                ctx.fillStyle = '#5d4037';
+                ctx.fillRect(this.x, this.y, this.w, this.h);
+                ctx.fillStyle = '#ffcc80';
+                ctx.fillRect(this.x + 10, this.y + 10, 30, 20);
+                ctx.fillStyle = '#000';
+                ctx.fillRect(this.x + 15, this.y + 15, 5, 5);
+                ctx.fillRect(this.x + 30, this.y + 15, 5, 5);
+
+                if (this.throwTimer > this.throwCooldown - 20) {
+                    ctx.fillStyle = '#5d4037';
+                    ctx.fillRect(this.x - 10, this.y + 20, 10, 20);
+                    ctx.fillRect(this.x + 50, this.y + 20, 10, 20);
+                }
+            }
+        }
+
+        class Princess {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.w = 20;
+                this.h = 30;
+            }
+            
+            draw() {
+                ctx.fillStyle = '#ff69b4';
+                ctx.fillRect(this.x, this.y, this.w, this.h);
+                ctx.fillStyle = '#f1c40f';
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y);
+                ctx.lineTo(this.x + 5, this.y - 5);
+                ctx.lineTo(this.x + 10, this.y);
+                ctx.lineTo(this.x + 15, this.y - 5);
+                ctx.lineTo(this.x + 20, this.y);
+                ctx.fill();
+                ctx.fillStyle = '#fff';
+                ctx.font = '10px "Press Start 2P"';
+                ctx.fillText("HELP!", this.x + 30, this.y);
+            }
+        }
+
+        // --- 전역 변수 ---
+        let player;
+        let kong;
+        let princess;
+        let barrels = [];
+        let platforms = [];
+        let ladders = [];
+
+        // --- 레벨 생성기 ---
+        function generateLevel() {
+            platforms = [];
+            ladders = [];
+            barrels = [];
+
+            // 1. 바닥 (1층)
+            const groundY = canvas.height - 20;
+            platforms.push({ x: 0, y: groundY, w: canvas.width, h: 20 });
+
+            // 층 높이 설정
+            const floorY = [490, 400, 310, 220]; // 2, 3, 4, 5층
+            const topY = 130; // 6층 (콩)
+            const goalY = 50; // 7층 (공주)
+
+            // 2. 중간 층 생성
+            for (let i = 0; i < floorY.length; i++) {
+                let y = floorY[i];
+                let makeMiddleGap = Math.random() < 0.3;
+
+                if (makeMiddleGap) {
+                    // 가운데 구멍
+                    platforms.push({ x: 0, y: y, w: 260, h: 20 });
+                    platforms.push({ x: 340, y: y, w: 260, h: 20 });
+                } else {
+                    // 지그재그
+                    if (i % 2 === 0) {
+                        platforms.push({ x: 0, y: y, w: 540, h: 20 });
+                    } else {
+                        platforms.push({ x: 60, y: y, w: 540, h: 20 });
+                    }
+                }
+            }
+            
+            // 3. 상단부
+            platforms.push({ x: 0, y: topY, w: 540, h: 20 });
+            platforms.push({ x: 220, y: goalY, w: 120, h: 15 });
+
+            // 4. 사다리 배치
+            ladders.push({ x: 500, y: floorY[0], w: 24, h: groundY - floorY[0] });
+            ladders.push({ x: 80, y: floorY[1], w: 24, h: floorY[0] - floorY[1] });
+            ladders.push({ x: 500, y: floorY[2], w: 24, h: floorY[1] - floorY[2] });
+            ladders.push({ x: 80, y: floorY[3], w: 24, h: floorY[2] - floorY[3] });
+            ladders.push({ x: 500, y: topY, w: 24, h: floorY[3] - topY });
+            ladders.push({ x: 280, y: goalY, w: 24, h: topY - goalY });
+
+            // 캐릭터 배치
+            kong = new Kong(60, topY - 50); 
+            princess = new Princess(250, goalY - 30); 
+            
+            if (player) {
+                player.resetPosition();
+            } else {
+                player = new Player();
+            }
+        }
+
+        // --- 점수 관리 ---
+        function addScore(points) {
+            score += points;
+            scoreEl.innerText = score;
+        }
+
+        // --- 게임 루프 ---
+        function loop() {
+            if (!gameRunning) return;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            player.update();
+            kong.update();
+            barrels.forEach(b => b.update());
+            barrels = barrels.filter(b => b.active);
+
+            // 충돌 체크
+            for (let b of barrels) {
+                if (checkCollision(player, b)) {
+                    doGameOver();
+                    return;
+                }
+            }
+
+            // 승리 체크
+            if (checkCollision(player, princess)) {
+                doLevelClear();
+                return;
+            }
+
+            // 그리기
+            drawWorld();
+            princess.draw();
+            kong.draw();
+            barrels.forEach(b => b.draw());
+            player.draw();
+
+            animationId = requestAnimationFrame(loop);
+        }
+
+        function checkCollision(r1, r2) {
+            return (r1.x < r2.x + r2.w &&
+                    r1.x + r1.w > r2.x &&
+                    r1.y < r2.y + r2.h &&
+                    r1.y + r1.h > r2.y);
+        }
+
+        function drawWorld() {
+            // 플랫폼
+            ctx.fillStyle = '#c0392b';
+            for (let p of platforms) {
+                ctx.fillRect(p.x, p.y, p.w, p.h);
+                ctx.strokeStyle = '#e74c3c';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(p.x, p.y, p.w, p.h);
+            }
+            // 사다리
+            ctx.fillStyle = '#3498db';
+            for (let l of ladders) {
+                for (let i = 0; i < l.h; i += 10) {
+                    ctx.fillRect(l.x, l.y + i, l.w, 2);
+                }
+                ctx.fillRect(l.x, l.y, 4, l.h);
+                ctx.fillRect(l.x + l.w - 4, l.y, 4, l.h);
+            }
+        }
+
+        // --- 게임 흐름 제어 ---
+        function startGame() {
+            startScreen.classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
+            
+            score = 0;
+            level = 1;
+            scoreEl.innerText = score;
+            levelEl.innerText = level;
+            
+            gameRunning = true;
+            generateLevel();
+            loop();
+        }
+
+        function resetGame() {
+            startGame();
+        }
+
+        function nextLevel() {
+            levelClearScreen.classList.add('hidden');
+            gameRunning = true;
+            level++;
+            addScore(1000);
+            levelEl.innerText = level;
+            generateLevel();
+            loop();
+        }
+
+        function doLevelClear() {
+            gameRunning = false;
+            cancelAnimationFrame(animationId);
+            levelClearScreen.classList.remove('hidden');
+            setTimeout(nextLevel, 2000); 
+        }
+
+        function doGameOver() {
+            gameRunning = false;
+            cancelAnimationFrame(animationId);
+            
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('kongHighScoreInfinite', highScore);
+                highScoreEl.innerText = highScore;
+            }
+            finalScoreEl.innerText = score;
+            finalLevelEl.innerText = level;
+            gameOverScreen.classList.remove('hidden');
+        }
+
+        // --- 입력 리스너 ---
+        window.addEventListener('keydown', e => {
+            if (e.code === 'ArrowUp') keys.ArrowUp = true;
+            if (e.code === 'ArrowDown') keys.ArrowDown = true;
+            if (e.code === 'ArrowLeft') keys.ArrowLeft = true;
+            if (e.code === 'ArrowRight') keys.ArrowRight = true;
+            if (e.code === 'Space') { keys.Space = true; e.preventDefault(); }
+        });
+
+        window.addEventListener('keyup', e => {
+            if (e.code === 'ArrowUp') keys.ArrowUp = false;
+            if (e.code === 'ArrowDown') keys.ArrowDown = false;
+            if (e.code === 'ArrowLeft') keys.ArrowLeft = false;
+            if (e.code === 'ArrowRight') keys.ArrowRight = false;
+            if (e.code === 'Space') keys.Space = false;
+        });
+
+        const setupTouch = (id, key) => {
+            const el = document.getElementById(id);
+            if(!el) return;
+            el.addEventListener('touchstart', (e) => { e.preventDefault(); keys[key] = true; });
+            el.addEventListener('touchend', (e) => { e.preventDefault(); keys[key] = false; });
+            el.addEventListener('mousedown', (e) => { e.preventDefault(); keys[key] = true; });
+            el.addEventListener('mouseup', (e) => { e.preventDefault(); keys[key] = false; });
+            el.addEventListener('mouseleave', (e) => { e.preventDefault(); keys[key] = false; });
+        };
+
+        setupTouch('btn-left', 'ArrowLeft');
+        setupTouch('btn-right', 'ArrowRight');
+        setupTouch('btn-up', 'ArrowUp');
+        setupTouch('btn-down', 'ArrowDown');
+        setupTouch('btn-jump', 'Space');
+
+        // 초기화
+        generateLevel(); 
+        drawWorld();
+        if(kong) kong.draw();
+        if(princess) princess.draw();
+
+    </script>
+</body>
+</html>
